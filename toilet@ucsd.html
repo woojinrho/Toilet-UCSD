@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlushFinder — UC San Diego</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#182B49;--blue:#00629B;--gold:#C69214;
+  --star:#FFB800;--bg:#EFF2F5;--white:#fff;
+  --text:#1C1C2E;--muted:#6B7280;--border:#E2E6EA;
+  --radius:14px;--font:'IBM Plex Sans',sans-serif;
+}
+html,body{height:100%;font-family:var(--font);overflow:hidden;background:var(--bg)}
+#hdr{position:fixed;inset:0 0 auto;z-index:1000;height:62px;background:var(--navy);
+  display:flex;align-items:center;padding:0 20px;gap:14px;box-shadow:0 2px 16px rgba(0,0,0,.3)}
+#logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo-icon{width:36px;height:36px;background:var(--gold);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;font-size:20px}
+.logo-text{color:#fff;font-size:17px;font-weight:700;letter-spacing:-.3px;line-height:1.1}
+.logo-sub{color:rgba(255,255,255,.45);font-size:10px;letter-spacing:1px;text-transform:uppercase}
+#srch-wrap{flex:1;max-width:480px;position:relative}
+#srch{width:100%;padding:9px 16px 9px 40px;border-radius:10px;border:none;
+  background:rgba(255,255,255,.12);color:#fff;font-family:var(--font);
+  font-size:13px;outline:none;transition:background .2s}
+#srch::placeholder{color:rgba(255,255,255,.4)}
+#srch:focus{background:rgba(255,255,255,.2)}
+.srch-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);
+  color:rgba(255,255,255,.5);font-size:15px;pointer-events:none}
+#srch-dd{position:absolute;top:calc(100% + 8px);left:0;right:0;background:#fff;
+  border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.2);overflow:hidden;display:none;z-index:2}
+.srch-item{padding:11px 15px;cursor:pointer;display:flex;align-items:center;gap:10px;
+  border-bottom:.5px solid var(--border);transition:background .15s}
+.srch-item:last-child{border:none}
+.srch-item:hover{background:var(--bg)}
+.srch-name{font-size:13px;font-weight:600;color:var(--text)}
+.srch-sub{font-size:11px;color:var(--muted);margin-top:1px}
+#badge{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);
+  border-radius:8px;padding:6px 13px;color:rgba(255,255,255,.75);font-size:12px;white-space:nowrap;flex-shrink:0}
+#map{position:fixed;top:62px;inset-inline:0;bottom:0;z-index:1}
+.leaflet-control-zoom{border:none!important;box-shadow:0 4px 16px rgba(0,0,0,.15)!important;
+  border-radius:10px!important;overflow:hidden;margin-right:16px!important;margin-bottom:24px!important}
+.leaflet-control-zoom a{font-size:16px!important;width:36px!important;height:36px!important;
+  line-height:36px!important;color:var(--navy)!important}
+.leaflet-control-attribution{font-size:9px!important}
+.mpin{background:#fff;border:2.5px solid var(--navy);border-radius:11px;padding:4px 9px;
+  display:flex;align-items:center;gap:5px;box-shadow:0 3px 12px rgba(0,0,0,.22);cursor:pointer;
+  transition:transform .2s,box-shadow .2s;white-space:nowrap;position:relative}
+.mpin:hover{transform:scale(1.1);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.mpin.active{background:var(--navy);border-color:var(--gold)}
+.mico{font-size:13px}
+.mrat{font-size:11px;font-weight:700;color:var(--text)}
+.mpin.active .mrat{color:#fff}
+.mtail{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;
+  border-top:8px solid var(--navy);position:absolute;bottom:-10px;left:50%;transform:translateX(-50%)}
+.mpin.active .mtail{border-top-color:var(--gold)}
+#pop{position:fixed;z-index:900;width:292px;background:#fff;border-radius:var(--radius);
+  box-shadow:0 20px 60px rgba(0,0,0,.22);overflow:hidden;cursor:pointer;
+  border:.5px solid var(--border);display:none;transition:opacity .18s,transform .18s}
+#pop.show{display:block;animation:popIn .26s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes popIn{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+#pop:hover{filter:brightness(.98)}
+.pop-hero{width:100%;height:130px;display:flex;align-items:center;
+  justify-content:center;font-size:52px;position:relative}
+.pop-badge{position:absolute;top:9px;right:9px;background:rgba(0,0,0,.55);
+  backdrop-filter:blur(6px);color:#fff;font-size:9px;font-weight:700;
+  padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.6px}
+.pop-body{padding:13px 15px 14px}
+.pop-name{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px;line-height:1.3}
+.pop-bld{font-size:11px;color:var(--muted);margin-bottom:9px}
+.pop-foot{display:flex;align-items:center;justify-content:space-between}
+.stars{display:flex;gap:2px}
+.star{font-size:13px;color:#D1D5DB}
+.star.on{color:var(--star)}
+.pop-rval{font-size:12px;font-weight:700;color:var(--text)}
+.pop-rcnt{font-size:11px;color:var(--muted);margin-left:3px}
+.pop-hint{font-size:10px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+#ovl{position:fixed;inset:0;z-index:800;background:rgba(0,0,0,0);
+  pointer-events:none;transition:background .3s}
+#ovl.dim{background:rgba(0,0,0,.35);pointer-events:auto}
+#pop-bg{position:fixed;inset:0;z-index:850;display:none}
+#panel{position:fixed;inset:0;z-index:1100;background:var(--bg);
+  transform:translateY(100%);transition:transform .48s cubic-bezier(.32,.72,0,1);
+  overflow-y:auto;overscroll-behavior:contain}
+#panel.open{transform:translateY(0)}
+.ph{position:relative;height:270px;overflow:hidden}
+.ph-bg{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:90px}
+.ph-grad{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.72) 0%,transparent 60%)}
+.ph-back{position:absolute;top:76px;left:18px;width:40px;height:40px;
+  background:rgba(0,0,0,.48);backdrop-filter:blur(8px);border-radius:50%;
+  border:none;color:#fff;font-size:19px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:background .2s}
+.ph-back:hover{background:rgba(0,0,0,.68)}
+.ph-dir{position:absolute;top:76px;right:18px;width:40px;height:40px;
+  background:var(--blue);border-radius:50%;border:none;color:#fff;font-size:17px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 3px 14px rgba(0,98,155,.5);transition:background .2s,transform .2s}
+.ph-dir:hover{background:#004f7e;transform:scale(1.08)}
+.ph-info{position:absolute;bottom:18px;left:18px;right:18px}
+.ph-gbadge{display:inline-block;background:var(--gold);color:#fff;font-size:9px;font-weight:700;
+  padding:3px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px}
+.ph-name{font-size:21px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:3px}
+.ph-bld{font-size:12px;color:rgba(255,255,255,.72)}
+.pcont{padding:0 16px 100px}
+.psec{background:#fff;border-radius:var(--radius);padding:18px;margin-top:14px;border:.5px solid var(--border)}
+.sec-ttl{font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;
+  letter-spacing:.9px;margin-bottom:13px;display:flex;align-items:center;gap:7px}
+.ov-row{display:flex;align-items:flex-start;gap:14px;margin-bottom:4px}
+.ov-num{font-size:50px;font-weight:700;color:var(--text);line-height:1}
+.ov-right{padding-top:6px}
+.stars-lg .star{font-size:19px}
+.ov-cnt{font-size:12px;color:var(--muted);margin-top:3px}
+.ov-desc{font-size:13px;color:var(--text);line-height:1.68;margin-top:13px;padding-top:13px;border-top:.5px solid var(--border)}
+.feats{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px;padding-top:13px;border-top:.5px solid var(--border)}
+.feat{background:var(--bg);border:.5px solid var(--border);color:var(--text);font-size:11px;font-weight:500;padding:5px 11px;border-radius:20px}
+.rev{padding:13px 0;border-bottom:.5px solid var(--border)}
+.rev:last-child{border:none}
+.rev-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.rev-ava{width:31px;height:31px;border-radius:50%;background:var(--navy);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0}
+.rev-nm{font-size:13px;font-weight:600;color:var(--text)}
+.rev-dt{font-size:11px;color:var(--muted)}
+.rev-txt{font-size:13px;color:#4B5563;line-height:1.62}
+.rev-stars .star{font-size:12px}
+.rev-loading{font-size:13px;color:var(--muted);padding:14px 0;text-align:center}
+.ar-wrap{margin-top:16px;padding-top:16px;border-top:1.5px solid var(--border)}
+.ar-ttl{font-size:13px;font-weight:700;color:var(--text);margin-bottom:11px}
+.star-sel{display:flex;gap:3px;margin-bottom:11px}
+.ss-btn{font-size:26px;background:none;border:none;cursor:pointer;color:#D1D5DB;
+  transition:color .12s,transform .12s;padding:2px;line-height:1}
+.ss-btn:hover{transform:scale(1.2)}
+.ss-btn.on{color:var(--star)}
+#rev-ta{width:100%;padding:11px;border:1.5px solid var(--border);border-radius:10px;
+  font-family:var(--font);font-size:13px;resize:none;outline:none;
+  transition:border-color .2s;height:76px;color:var(--text)}
+#rev-ta:focus{border-color:var(--blue)}
+#rev-submit{margin-top:9px;padding:10px 22px;background:var(--navy);color:#fff;
+  border:none;border-radius:10px;font-family:var(--font);font-size:13px;
+  font-weight:600;cursor:pointer;transition:background .2s,transform .15s}
+#rev-submit:hover:not(:disabled){background:var(--blue);transform:translateY(-1px)}
+#rev-submit:disabled{opacity:.55;cursor:not-allowed}
+#toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:#222;color:#fff;padding:10px 20px;border-radius:10px;
+  font-size:13px;opacity:0;transition:opacity .25s,transform .25s;z-index:9999;pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div id="logo">
+    <div class="logo-icon">🚻</div>
+    <div>
+      <div class="logo-text">FlushFinder</div>
+      <div class="logo-sub">UC San Diego</div>
+    </div>
+  </div>
+  <div id="srch-wrap">
+    <span class="srch-ico">🔍</span>
+    <input id="srch" type="text" placeholder="Search bathrooms, buildings…" autocomplete="off">
+    <div id="srch-dd"></div>
+  </div>
+  <div id="badge">🚻 <span id="bcnt">10</span> locations</div>
+</div>
+
+<div id="map"></div>
+<div id="ovl"></div>
+<div id="pop-bg"></div>
+
+<div id="pop">
+  <div class="pop-hero" id="pop-hero">
+    <span id="pop-emo"></span>
+    <span class="pop-badge" id="pop-badge"></span>
+  </div>
+  <div class="pop-body">
+    <div class="pop-name" id="pop-name"></div>
+    <div class="pop-bld" id="pop-bld"></div>
+    <div class="pop-foot">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div class="stars" id="pop-stars"></div>
+        <span class="pop-rval" id="pop-rv"></span>
+        <span class="pop-rcnt" id="pop-rc"></span>
+      </div>
+      <span class="pop-hint">View →</span>
+    </div>
+  </div>
+</div>
+
+<div id="panel">
+  <div class="ph">
+    <div class="ph-bg" id="d-hero"></div>
+    <div class="ph-grad"></div>
+    <button class="ph-back" onclick="closePanel()">&#8592;</button>
+    <button class="ph-dir" id="d-dir" title="Get directions">&#10148;</button>
+    <div class="ph-info">
+      <div class="ph-gbadge" id="d-gender"></div>
+      <div class="ph-name" id="d-name"></div>
+      <div class="ph-bld" id="d-bld"></div>
+    </div>
+  </div>
+  <div class="pcont">
+    <div class="psec">
+      <div class="sec-ttl">⭐ Overview</div>
+      <div class="ov-row">
+        <div class="ov-num" id="d-rnum"></div>
+        <div class="ov-right">
+          <div class="stars stars-lg" id="d-stars"></div>
+          <div class="ov-cnt" id="d-rcnt"></div>
+        </div>
+      </div>
+      <div class="ov-desc" id="d-desc"></div>
+      <div class="feats" id="d-feats"></div>
+    </div>
+    <div class="psec">
+      <div class="sec-ttl">💬 Reviews</div>
+      <div id="d-revs"></div>
+      <div class="ar-wrap">
+        <div class="ar-ttl">Write a Review</div>
+        <div class="star-sel" id="ss"></div>
+        <textarea id="rev-ta" placeholder="Share your experience…"></textarea><br>
+        <button id="rev-submit" onclick="submitRev()">Post Review</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+
+// ─────────────────────────────────────────────────────────
+//  STEP 2 — paste your Supabase credentials here
+// ─────────────────────────────────────────────────────────
+const SUPABASE_URL      = 'https://nywerbalaroevtwbedwf.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_dWMraVGQURcGl-NpWz4Ibw_WQD_8P5m';
+// ─────────────────────────────────────────────────────────
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const COLORS=['#1a3a5c','#0d5c8a','#2d6a4f','#6b3fa0','#b85c2a',
+              '#1a6b72','#8b2252','#4a5c2a','#5c3d1a','#1a4a5c'];
+
+const DATA=[
+  {id:1,name:"Geisel Library — Floor 2",bld:"Geisel Library",floor:"2nd Floor",
+   lat:32.8811,lng:-117.2374,rating:4.3,nr:52,gender:"All-Gender",emo:"📚",ci:0,
+   desc:"One of the most popular restrooms on campus, conveniently located on the second floor of Geisel Library. Recently renovated with modern fixtures and strong air ventilation.",
+   feats:["♿ Accessible","🚿 Automatic faucets","🧴 Soap dispenser","💨 Hand dryer","❄️ Air conditioned"],
+   seedRevs:[{u:"Alex K.",av:"AK",dt:"2 days ago",r:5,t:"Super clean and well-maintained. My go-to spot when studying."},
+             {u:"Sarah M.",av:"SM",dt:"1 week ago",r:4,t:"Usually clean during the day. Gets crowded around finals week but still manageable."}]},
+  {id:2,name:"Price Center — Ground Floor",bld:"Price Center",floor:"Ground Floor",
+   lat:32.8793,lng:-117.2359,rating:3.8,nr:89,gender:"Men / Women",emo:"🛒",ci:1,
+   desc:"Located in the heart of campus near the food court. High foot traffic during lunch hours means it can get messy, but janitorial staff are present regularly.",
+   feats:["♿ Accessible","🚸 Baby changing station","🧴 Soap dispenser","💨 Hand dryer"],
+   seedRevs:[{u:"Maria G.",av:"MG",dt:"3 days ago",r:3,t:"Decent but busy between 12–1pm."},
+             {u:"Tom W.",av:"TW",dt:"5 days ago",r:4,t:"Convenient location. Cleaned regularly so usually acceptable."}]},
+  {id:3,name:"Warren College — Student Center",bld:"Warren Student Center",floor:"1st Floor",
+   lat:32.8833,lng:-117.2310,rating:4.5,nr:33,gender:"All-Gender",emo:"🏛",ci:2,
+   desc:"A hidden gem tucked away in Warren College's student center. Lower traffic means it stays cleaner than most campus restrooms.",
+   feats:["♿ Accessible","🧴 Soap dispenser","📄 Paper towels","❄️ Air conditioned"],
+   seedRevs:[{u:"Casey R.",av:"CR",dt:"1 day ago",r:5,t:"Best bathroom on campus, no doubt. Hidden gem!"},
+             {u:"Jin P.",av:"JP",dt:"3 days ago",r:4,t:"Very clean. The all-gender designation makes it super inclusive."}]},
+  {id:4,name:"Muir College — Literature Building",bld:"Literature Building",floor:"1st Floor",
+   lat:32.8769,lng:-117.2424,rating:3.5,nr:27,gender:"Men / Women",emo:"📖",ci:3,
+   desc:"Standard campus restroom near the Muir writing labs. Functional and accessible but lacks modern upgrades.",
+   feats:["♿ Accessible","🧴 Soap dispenser","📄 Paper towels"],
+   seedRevs:[{u:"Priya S.",av:"PS",dt:"1 week ago",r:3,t:"Gets the job done. Nothing special, but usually clean enough."}]},
+  {id:5,name:"Revelle College — Commons",bld:"Revelle Commons",floor:"Ground Floor",
+   lat:32.8748,lng:-117.2441,rating:4.0,nr:41,gender:"Men / Women",emo:"🏠",ci:4,
+   desc:"Well-positioned near Revelle's main dining area. Gets cleaned twice daily, and the maintenance team does a solid job keeping it stocked.",
+   feats:["♿ Accessible","🧴 Soap dispenser","💨 Hand dryer","❄️ Air conditioned"],
+   seedRevs:[{u:"Emma T.",av:"ET",dt:"4 days ago",r:4,t:"Pretty good for a busy area. Cleaned in the morning and after lunch."}]},
+  {id:6,name:"Center Hall — Basement",bld:"Center Hall",floor:"Basement",
+   lat:32.8779,lng:-117.2394,rating:2.9,nr:67,gender:"Men / Women",emo:"🎓",ci:5,
+   desc:"Located in the basement of Center Hall. High usage between large lecture classes, limited ventilation, and dated fixtures. Use only if necessary.",
+   feats:["♿ Accessible","🧴 Soap dispenser"],
+   seedRevs:[{u:"Liam C.",av:"LC",dt:"2 days ago",r:2,t:"Yikes. Needs a renovation. Smells bad and the faucets are inconsistent."},
+             {u:"Anna M.",av:"AM",dt:"1 week ago",r:3,t:"Functional but that's about all you can say. Avoid during class breaks."}]},
+  {id:7,name:"CSE Building — Floor 3",bld:"Computer Science & Engineering",floor:"3rd Floor",
+   lat:32.8826,lng:-117.2337,rating:4.7,nr:29,gender:"All-Gender",emo:"💻",ci:6,
+   desc:"The crown jewel of UCSD campus restrooms. Renovated in 2023 with touchless everything. Low traffic in the upper floors keeps it pristine.",
+   feats:["♿ Accessible","🚿 Automatic faucets","🧴 Soap dispenser","💨 Touchless dryer","❄️ Air conditioned","✨ Renovated 2023"],
+   seedRevs:[{u:"Kevin Z.",av:"KZ",dt:"1 day ago",r:5,t:"Spotless, touchless, air-conditioned. 10/10."},
+             {u:"Nadia F.",av:"NF",dt:"5 days ago",r:5,t:"I walk all the way from Revelle just to use this one. Worth every step."}]},
+  {id:8,name:"RIMAC Arena — Lobby",bld:"RIMAC Arena",floor:"Lobby Level",
+   lat:32.8869,lng:-117.2340,rating:3.6,nr:44,gender:"Men / Women",emo:"🏋️",ci:7,
+   desc:"Adjacent to the main gym facilities. Post-workout traffic can mean longer wait times, but it's cleaned frequently given the sports complex standards.",
+   feats:["♿ Accessible","🚿 Showers available","🧴 Soap dispenser","💨 Hand dryer"],
+   seedRevs:[{u:"Tyler H.",av:"TH",dt:"3 days ago",r:4,t:"For a gym bathroom it's actually pretty decent. Showers work well."},
+             {u:"Monica R.",av:"MR",dt:"1 week ago",r:3,t:"Busy during peak hours (5–7pm). Go early morning for the best experience."}]},
+  {id:9,name:"Biomedical Sciences — Floor 1",bld:"Biomedical Sciences Building",floor:"1st Floor",
+   lat:32.8797,lng:-117.2305,rating:4.4,nr:18,gender:"All-Gender",emo:"🔬",ci:8,
+   desc:"Quiet, modern restroom in the BMS building. Research building traffic is lower than lecture halls — almost always clean and well-stocked.",
+   feats:["♿ Accessible","🚿 Automatic faucets","🧴 Soap dispenser","💨 Hand dryer"],
+   seedRevs:[{u:"Aisha K.",av:"AK",dt:"2 weeks ago",r:5,t:"Great bathroom in a calm building. Never crowded, always stocked."}]},
+  {id:10,name:"Social Sciences — Floor 2",bld:"Social Sciences Building",floor:"2nd Floor",
+   lat:32.8760,lng:-117.2380,rating:3.9,nr:35,gender:"Men / Women",emo:"📊",ci:9,
+   desc:"Standard restroom in the social sciences building. Moderate foot traffic, acceptable cleanliness with regular maintenance visits.",
+   feats:["♿ Accessible","🧴 Soap dispenser","📄 Paper towels"],
+   seedRevs:[{u:"Chris P.",av:"CP",dt:"4 days ago",r:4,t:"Does the job. Clean enough for regular use."},
+             {u:"Rachel L.",av:"RL",dt:"1 week ago",r:4,t:"Nothing remarkable but consistently clean."}]},
+];
+
+let current=null,selRating=0;
+
+const map=L.map('map',{center:[32.8800,-117.2375],zoom:16});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom:19
+}).addTo(map);
+map.zoomControl.setPosition('bottomright');
+
+function starsHTML(r,size){
+  let h='',s=size?` style="font-size:${size}"`:'' ;
+  for(let i=1;i<=5;i++) h+=`<span class="star${i<=Math.floor(r)?' on':''}"${s}>★</span>`;
+  return h;
+}
+
+function relTime(iso){
+  const diff=Math.floor((new Date()-new Date(iso))/1000);
+  if(diff<60) return 'just now';
+  if(diff<3600) return Math.floor(diff/60)+'m ago';
+  if(diff<86400) return Math.floor(diff/3600)+'h ago';
+  if(diff<604800) return Math.floor(diff/86400)+'d ago';
+  return new Date(iso).toLocaleDateString();
+}
+
+function normRev(r){
+  if(r.created_at) return {
+    u:r.author||'Anonymous',av:(r.author||'AN').slice(0,2).toUpperCase(),
+    dt:relTime(r.created_at),r:r.rating,t:r.text
+  };
+  return r;
+}
+
+function renderRevs(revs){
+  if(!revs.length){
+    document.getElementById('d-revs').innerHTML=
+      '<div class="rev-loading">No reviews yet — be the first! 👆</div>';return;
+  }
+  document.getElementById('d-revs').innerHTML=revs.map(r=>`
+    <div class="rev">
+      <div class="rev-hd">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div class="rev-ava">${r.av}</div>
+          <div><div class="rev-nm">${r.u}</div><div class="rev-dt">${r.dt}</div></div>
+        </div>
+        <div class="stars rev-stars">${starsHTML(r.r)}</div>
+      </div>
+      <div class="rev-txt">${r.t}</div>
+    </div>`).join('');
+}
+
+function makeMarker(b){
+  const icon=L.divIcon({className:'',
+    html:`<div style="position:relative">
+      <div class="mpin" id="mp${b.id}">
+        <span class="mico">${b.emo}</span>
+        <span class="mrat" id="mr${b.id}">★ ${b.rating.toFixed(1)}</span>
+      </div>
+      <div class="mtail" id="mt${b.id}"></div>
+    </div>`,
+    iconSize:[90,44],iconAnchor:[45,44]
+  });
+  const m=L.marker([b.lat,b.lng],{icon}).addTo(map);
+  m.on('click',e=>{L.DomEvent.stopPropagation(e);showPop(b);});
+  return m;
+}
+
+function showPop(b){
+  current=b;
+  document.querySelectorAll('.mpin').forEach(p=>p.classList.remove('active'));
+  const pin=document.getElementById('mp'+b.id);
+  if(pin) pin.classList.add('active');
+  document.getElementById('pop-emo').textContent=b.emo;
+  document.getElementById('pop-hero').style.background=
+    `linear-gradient(135deg,${COLORS[b.ci]},${COLORS[b.ci]}cc)`;
+  document.getElementById('pop-badge').textContent=b.gender;
+  document.getElementById('pop-name').textContent=b.name;
+  document.getElementById('pop-bld').textContent=`${b.bld} · ${b.floor}`;
+  document.getElementById('pop-rv').textContent=b.rating.toFixed(1);
+  document.getElementById('pop-rc').textContent=`(${b.nr})`;
+  document.getElementById('pop-stars').innerHTML=starsHTML(b.rating);
+  map.panTo([b.lat,b.lng],{animate:true,duration:.5});
+  const pt=map.latLngToContainerPoint([b.lat,b.lng]);
+  const cw=292,ch=250;
+  let left=pt.x-cw/2,top=pt.y+62-ch-18;
+  left=Math.max(8,Math.min(left,window.innerWidth-cw-8));
+  if(top<70) top=pt.y+62+18;
+  top=Math.min(top,window.innerHeight-ch-8);
+  const pop=document.getElementById('pop');
+  pop.style.left=left+'px';pop.style.top=top+'px';pop.style.display='none';
+  void pop.offsetWidth;pop.classList.add('show');
+  document.getElementById('pop-bg').style.display='block';
+}
+
+function hidePop(){
+  const pop=document.getElementById('pop');
+  pop.style.opacity='0';pop.style.transform='scale(.9)';
+  setTimeout(()=>{pop.classList.remove('show');pop.style.cssText='';
+    document.getElementById('pop-bg').style.display='none';
+    document.querySelectorAll('.mpin').forEach(p=>p.classList.remove('active'));},180);
+}
+
+async function openPanel(b){
+  if(!b) return;current=b;
+  document.getElementById('d-hero').textContent=b.emo;
+  document.getElementById('d-hero').style.background=
+    `linear-gradient(135deg,${COLORS[b.ci]},${COLORS[b.ci]}bb)`;
+  document.getElementById('d-gender').textContent=b.gender;
+  document.getElementById('d-name').textContent=b.name;
+  document.getElementById('d-bld').textContent=`${b.bld} · ${b.floor}`;
+  document.getElementById('d-rnum').textContent=b.rating.toFixed(1);
+  document.getElementById('d-rcnt').textContent=`${b.nr} ratings`;
+  document.getElementById('d-stars').innerHTML=starsHTML(b.rating,'19px');
+  document.getElementById('d-desc').textContent=b.desc;
+  document.getElementById('d-feats').innerHTML=b.feats.map(f=>`<span class="feat">${f}</span>`).join('');
+  document.getElementById('d-dir').onclick=()=>getDir(b.lat,b.lng);
+  buildStarSel();selRating=0;document.getElementById('rev-ta').value='';
+  hidePop();
+  document.getElementById('ovl').classList.add('dim');
+  const panel=document.getElementById('panel');
+  panel.classList.add('open');panel.scrollTop=0;
+  document.getElementById('d-revs').innerHTML=
+    '<div class="rev-loading">⏳ Loading reviews…</div>';
+  try{
+    const{data:liveRevs,error}=await sb.from('reviews').select('*')
+      .eq('bathroom_id',b.id).order('created_at',{ascending:false});
+    if(error) throw error;
+    const live=(liveRevs||[]).map(normRev);
+    const all=[...live,...b.seedRevs];
+    if(live.length>0){
+      const avg=parseFloat((live.reduce((s,r)=>s+r.r,0)/live.length).toFixed(1));
+      document.getElementById('d-rnum').textContent=avg.toFixed(1);
+      document.getElementById('d-stars').innerHTML=starsHTML(avg,'19px');
+      document.getElementById('d-rcnt').textContent=
+        `${live.length} live review${live.length>1?'s':''}`;
+      const mrEl=document.getElementById('mr'+b.id);
+      if(mrEl) mrEl.textContent=`★ ${avg.toFixed(1)}`;
+    }
+    renderRevs(all);
+  }catch(e){
+    console.error('Supabase fetch error:',e);
+    renderRevs(b.seedRevs);
+  }
+}
+
+function closePanel(){
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('ovl').classList.remove('dim');
+}
+
+function getDir(lat,lng){
+  const dest=`${lat},${lng}`;
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      p=>window.open(`https://www.google.com/maps/dir/${p.coords.latitude},${p.coords.longitude}/${dest}`,'_blank'),
+      ()=>window.open(`https://www.google.com/maps/dir/UC+San+Diego,+La+Jolla+CA/${dest}`,'_blank')
+    );
+  }else window.open(`https://www.google.com/maps/dir/UC+San+Diego,+La+Jolla+CA/${dest}`,'_blank');
+}
+
+function buildStarSel(){
+  const wrap=document.getElementById('ss');wrap.innerHTML='';
+  for(let i=1;i<=5;i++){
+    const btn=document.createElement('button');
+    btn.className='ss-btn';btn.textContent='★';btn.dataset.v=i;
+    btn.addEventListener('mouseover',()=>
+      wrap.querySelectorAll('.ss-btn').forEach((b,j)=>b.style.color=j<i?'#FFB800':'#D1D5DB'));
+    btn.addEventListener('mouseout',()=>
+      wrap.querySelectorAll('.ss-btn').forEach((b,j)=>b.style.color=j<selRating?'#FFB800':'#D1D5DB'));
+    btn.addEventListener('click',()=>{
+      selRating=i;
+      wrap.querySelectorAll('.ss-btn').forEach((b,j)=>b.classList.toggle('on',j<i));
+    });
+    wrap.appendChild(btn);
+  }
+}
+
+async function submitRev(){
+  if(!selRating){showToast('Please select a star rating first ★');return;}
+  const txt=document.getElementById('rev-ta').value.trim();
+  if(!txt){showToast('Please write a review first');return;}
+  const btn=document.getElementById('rev-submit');
+  btn.textContent='Posting…';btn.disabled=true;
+  try{
+    const{error}=await sb.from('reviews').insert([{
+      bathroom_id:current.id,rating:selRating,text:txt,author:'Anonymous'
+    }]);
+    if(error) throw error;
+    showToast('Review posted! Thanks 🙌');
+    await openPanel(current);
+  }catch(e){
+    console.error('Insert error:',e);
+    showToast('Error posting — check your Supabase credentials.');
+  }finally{btn.textContent='Post Review';btn.disabled=false;}
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+document.getElementById('pop').addEventListener('click',()=>openPanel(current));
+document.getElementById('pop-bg').addEventListener('click',hidePop);
+document.getElementById('ovl').addEventListener('click',closePanel);
+
+const srchEl=document.getElementById('srch'),ddEl=document.getElementById('srch-dd');
+srchEl.addEventListener('input',()=>{
+  const q=srchEl.value.toLowerCase().trim();
+  if(!q){ddEl.style.display='none';return;}
+  const hits=DATA.filter(b=>b.name.toLowerCase().includes(q)||
+    b.bld.toLowerCase().includes(q)||b.gender.toLowerCase().includes(q));
+  if(!hits.length){ddEl.style.display='none';return;}
+  ddEl.innerHTML=hits.map(b=>`<div class="srch-item" data-id="${b.id}">
+    <span style="font-size:17px">${b.emo}</span>
+    <div><div class="srch-name">${b.name}</div>
+    <div class="srch-sub">${b.bld} · ★ ${b.rating.toFixed(1)}</div></div></div>`).join('');
+  ddEl.style.display='block';
+  ddEl.querySelectorAll('.srch-item').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const b=DATA.find(x=>x.id===parseInt(el.dataset.id));
+      if(b){srchEl.value='';ddEl.style.display='none';
+        map.setView([b.lat,b.lng],18,{animate:true});
+        setTimeout(()=>showPop(b),550);}
+    });
+  });
+});
+document.addEventListener('click',e=>{
+  if(!document.getElementById('srch-wrap').contains(e.target)) ddEl.style.display='none';
+});
+
+DATA.forEach(makeMarker);
+document.getElementById('bcnt').textContent=DATA.length;
+</script>
+</body>
+</html>
