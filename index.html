@@ -393,7 +393,8 @@ function showPop(b){
   if(top<70) top=pt.y+62+18;
   top=Math.min(top,window.innerHeight-ch-8);
   const pop=document.getElementById('pop');
-  pop.style.left=left+'px';pop.style.top=top+'px';pop.style.display='none';
+  pop.style.left=left+'px';pop.style.top=top+'px';
+  pop.classList.remove('show');
   void pop.offsetWidth;pop.classList.add('show');
   document.getElementById('pop-bg').style.display='block';
 }
